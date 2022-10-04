@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_10b0azj" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.17.0">
+  <bpmn:collaboration id="Collaboration_1vb2z6i">
+    <bpmn:participant id="Participant_18nk9ma" name="INDEX CUSTOMERS" processRef="fortnox-index-customers" />
+  </bpmn:collaboration>
+  <bpmn:process id="fortnox-index-customers" name="Onify Blueprint: Index customers from Fortnox" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_055j0yj">
+      <bpmn:lane id="Lane_1v6yci1" name="ONIFY">
+        <bpmn:flowNodeRef>start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>get-fortnox-settings</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>access-token-expired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>refresh-access-token</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>transformCustomers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>indexItems</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_0b6f9x2</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_1gjhkf7" name="FORTNOX">
+        <bpmn:flowNodeRef>get-customers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>get-customer-details</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_0ms48ec</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:sequenceFlow id="Flow_1x5mp8t" sourceRef="get-customers" targetRef="get-customer-details" />
+    <bpmn:sequenceFlow id="Flow_0918gu2" name="Yes" sourceRef="access-token-expired" targetRef="refresh-access-token" />
+    <bpmn:sequenceFlow id="Flow_1c793i8" sourceRef="get-fortnox-settings" targetRef="access-token-expired" />
+    <bpmn:sequenceFlow id="Flow_178qk1a" sourceRef="start" targetRef="get-fortnox-settings" />
+    <bpmn:startEvent id="start" name="Index customers">
+      <bpmn:outgoing>Flow_178qk1a</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="get-fortnox-settings" name="Get Fortnox settings">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="query">
+              <camunda:map>
+                <camunda:entry key="tag">fortnox</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="url">/my/config/settings</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>onifyApiRequest</camunda:connectorId>
+        </camunda:connector>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="process">
+            <camunda:map>
+              <camunda:entry key="tag">fortnox</camunda:entry>
+            </camunda:map>
+          </camunda:inputParameter>
+          <camunda:outputParameter name="fortnoxSettings">${content.output.body}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_178qk1a</bpmn:incoming>
+      <bpmn:outgoing>Flow_1c793i8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="access-token-expired" name="Access-Token expired?" default="Flow_0918gu2">
+      <bpmn:incoming>Flow_1c793i8</bpmn:incoming>
+      <bpmn:outgoing>Flow_0918gu2</bpmn:outgoing>
+      <bpmn:outgoing>Flow_07ey5w9</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="refresh-access-token" name="Refresh Fortnox Access-Token">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">/my/workflows/run/fortnox-refresh-access-token</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>onifyApiRequest</camunda:connectorId>
+        </camunda:connector>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="setAccessToken">
+            <camunda:script scriptFormat="js">environment.output.fortnoxSettings._fortnox_access_token.access_token  = content.output.body.output.access_token;
+next();</camunda:script>
+          </camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0918gu2</bpmn:incoming>
+      <bpmn:outgoing>Flow_0mpv8sf</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0mpv8sf" sourceRef="refresh-access-token" targetRef="get-customers" />
+    <bpmn:serviceTask id="get-customers" name="Get customers">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">https://api.fortnox.se/3/customers</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="responseType">json</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Authorization">Bearer ${environment.output.fortnoxSettings._fortnox_access_token.access_token}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="throwHttpErrors">${true}</camunda:inputParameter>
+            <camunda:inputParameter name="query">
+              <camunda:map>
+                <camunda:entry key="limit">30</camunda:entry>
+                <camunda:entry key="offset">${environment.output.itemsCount}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>httpRequest</camunda:connectorId>
+        </camunda:connector>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="setItemsCount">
+            <camunda:script scriptFormat="js">environment.output.itemsCount = (environment.output.itemsCount &gt; 0) ? environment.output.itemsCount : 0;
+next();</camunda:script>
+          </camunda:inputParameter>
+          <camunda:inputParameter name="state">
+            <camunda:script scriptFormat="js">next(null, {name: content.name, id: content.id});</camunda:script>
+          </camunda:inputParameter>
+          <camunda:outputParameter name="customers">${content.output.body.Customers}</camunda:outputParameter>
+          <camunda:outputParameter name="state">
+            <camunda:script scriptFormat="js">next(null, {id: content.id, result: {done: true}});</camunda:script>
+          </camunda:outputParameter>
+          <camunda:outputParameter name="totalResources">
+            <camunda:script scriptFormat="js">next(null, content.output.body.MetaInformation['@TotalResources']);</camunda:script>
+          </camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0mpv8sf</bpmn:incoming>
+      <bpmn:incoming>Flow_021l4z1</bpmn:incoming>
+      <bpmn:incoming>Flow_07ey5w9</bpmn:incoming>
+      <bpmn:outgoing>Flow_1x5mp8t</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_01uj4o1" sourceRef="get-customer-details" targetRef="transformCustomers" />
+    <bpmn:serviceTask id="get-customer-details" name="Get customer details">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">
+              <camunda:script scriptFormat="js">next(null, content.customer['@url']);</camunda:script>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Authorization">Bearer ${environment.output.fortnoxSettings._fortnox_access_token.access_token}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="responseType">json</camunda:inputParameter>
+            <camunda:outputParameter name="updateCustomerScript">
+              <camunda:script scriptFormat="js">content.customer._details = body.Customer;
+next();</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>httpRequest</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1x5mp8t</bpmn:incoming>
+      <bpmn:outgoing>Flow_01uj4o1</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics isSequential="true" camunda:collection="${environment.output.customers}" camunda:elementVariable="customer" />
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0relzkd" name="Get more customers" sourceRef="Gateway_0b6f9x2" targetRef="Event_0ms48ec">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="js">next(null, (environment.output.totalResources &gt; 0));</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_021l4z1" sourceRef="Event_0ms48ec" targetRef="get-customers" />
+    <bpmn:scriptTask id="transformCustomers" name="Transform customers" scriptFormat="javascript" camunda:resultVariable="itemsToIndex">
+      <bpmn:extensionElements />
+      <bpmn:incoming>Flow_01uj4o1</bpmn:incoming>
+      <bpmn:outgoing>Flow_14qy8v9</bpmn:outgoing>
+      <bpmn:script>if (!environment.output.customers) {
+    next(null, []);
+}
+
+const itemsToIndex = [];
+environment.output.customers.forEach(async function(customer) {
+    const itemToIndex = {
+        type: "customer",
+        key: "customer" + customer.CustomerNumber,
+        name: customer.Name,
+        tag: ["fortnox", "customer"],
+        attribute: {
+          address1: customer.Address1,
+          address2: customer.Address2,
+          city : customer.City,
+          currency: customer.Currency,
+          customernumber: customer.CustomerNumber,
+          email: customer.Email,
+          zipcode: customer.ZipCode,
+          orgnr: customer.OrganisationNumber,
+          phone: customer.Phone,
+          active : customer._details.Active,
+          www: customer._details.WWW
+        }
+    };
+    itemsToIndex.push(itemToIndex);
+    environment.output.itemsCount++;
+})
+
+next(null, itemsToIndex);</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:serviceTask id="indexItems" name="Index customers">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="payload">${environment.output.itemsToIndex}</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="url">/admin/bulk/items</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>onifyApiRequest</camunda:connectorId>
+        </camunda:connector>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="state">
+            <camunda:script scriptFormat="js">next(null, {name: content.name, id: content.id});</camunda:script>
+          </camunda:inputParameter>
+          <camunda:outputParameter name="state">
+            <camunda:script scriptFormat="js">next(null, {
+  id: content.id,
+  result: {
+    statusmessage: `Indexed ${environment.output.itemsCount} customers`
+  }
+});</camunda:script>
+          </camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_14qy8v9</bpmn:incoming>
+      <bpmn:outgoing>Flow_01l9aol</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end" name="Customers indexed">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="clearOutput">
+            <camunda:script scriptFormat="js">// Do not bloat flow state
+environment.output.customers = [];
+environment.output.itemsToIndex = [];
+
+// Do not save secrets in state
+environment.output.fortnoxSettings = {};
+
+next();</camunda:script>
+          </camunda:inputParameter>
+          <camunda:inputParameter name="state">
+            <camunda:script scriptFormat="js">next(null, {
+  id: 'indexItems',
+  result: {
+	done: true
+  }
+});</camunda:script>
+          </camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0m7qec6</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_14qy8v9" sourceRef="transformCustomers" targetRef="indexItems" />
+    <bpmn:sequenceFlow id="Flow_01l9aol" sourceRef="indexItems" targetRef="Gateway_0b6f9x2" />
+    <bpmn:sequenceFlow id="Flow_0m7qec6" name="No more customers" sourceRef="Gateway_0b6f9x2" targetRef="end" />
+    <bpmn:intermediateCatchEvent id="Event_0ms48ec" name="Wait 5 seconds">
+      <bpmn:incoming>Flow_0relzkd</bpmn:incoming>
+      <bpmn:outgoing>Flow_021l4z1</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1aqsxrj">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_07ey5w9" sourceRef="access-token-expired" targetRef="get-customers">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="js">var now = new Date();
+const timestampDate = new Date(environment.output.fortnoxSettings._fortnox_access_token.timestamp);
+timestampDate.setSeconds(timestampDate.getSeconds() + environment.output.fortnoxSettings._fortnox_access_token.expires_in);
+
+next(null, now &lt; timestampDate);</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:exclusiveGateway id="Gateway_0b6f9x2" default="Flow_0m7qec6">
+      <bpmn:incoming>Flow_01l9aol</bpmn:incoming>
+      <bpmn:outgoing>Flow_0m7qec6</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0relzkd</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:textAnnotation id="TextAnnotation_1j4h5ub">
+      <bpmn:text>Due to Fortnox rate limit (change if needed)</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_17vfeqf" sourceRef="Event_0ms48ec" targetRef="TextAnnotation_1j4h5ub" />
+    <bpmn:textAnnotation id="TextAnnotation_1jiqn0m">
+      <bpmn:text>Change limit if needed</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_0cuwppx" sourceRef="get-customers" targetRef="TextAnnotation_1jiqn0m" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1vb2z6i">
+      <bpmndi:BPMNShape id="Participant_18nk9ma_di" bpmnElement="Participant_18nk9ma" isHorizontal="true">
+        <dc:Bounds x="140" y="100" width="1470" height="660" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_1gjhkf7_di" bpmnElement="Lane_1gjhkf7" isHorizontal="true">
+        <dc:Bounds x="170" y="354" width="1440" height="406" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_1v6yci1_di" bpmnElement="Lane_1v6yci1" isHorizontal="true">
+        <dc:Bounds x="170" y="100" width="1440" height="254" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1j4h5ub_di" bpmnElement="TextAnnotation_1j4h5ub">
+        <dc:Bounds x="1080" y="570" width="160" height="41" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TextAnnotation_1jiqn0m_di" bpmnElement="TextAnnotation_1jiqn0m">
+        <dc:Bounds x="740" y="440" width="140" height="30" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_178qk1a_di" bpmnElement="Flow_178qk1a">
+        <di:waypoint x="278" y="210" />
+        <di:waypoint x="340" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1c793i8_di" bpmnElement="Flow_1c793i8">
+        <di:waypoint x="440" y="210" />
+        <di:waypoint x="485" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0918gu2_di" bpmnElement="Flow_0918gu2">
+        <di:waypoint x="510" y="235" />
+        <di:waypoint x="510" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="516" y="241" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1x5mp8t_di" bpmnElement="Flow_1x5mp8t">
+        <di:waypoint x="740" y="560" />
+        <di:waypoint x="810" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0mpv8sf_di" bpmnElement="Flow_0mpv8sf">
+        <di:waypoint x="510" y="390" />
+        <di:waypoint x="510" y="560" />
+        <di:waypoint x="640" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_01uj4o1_di" bpmnElement="Flow_01uj4o1">
+        <di:waypoint x="910" y="560" />
+        <di:waypoint x="970" y="560" />
+        <di:waypoint x="970" y="210" />
+        <di:waypoint x="1010" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0relzkd_di" bpmnElement="Flow_0relzkd">
+        <di:waypoint x="1350" y="235" />
+        <di:waypoint x="1350" y="670" />
+        <di:waypoint x="1078" y="670" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1284" y="276" width="52" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_021l4z1_di" bpmnElement="Flow_021l4z1">
+        <di:waypoint x="1042" y="670" />
+        <di:waypoint x="690" y="670" />
+        <di:waypoint x="690" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14qy8v9_di" bpmnElement="Flow_14qy8v9">
+        <di:waypoint x="1110" y="210" />
+        <di:waypoint x="1169" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_01l9aol_di" bpmnElement="Flow_01l9aol">
+        <di:waypoint x="1269" y="210" />
+        <di:waypoint x="1325" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0m7qec6_di" bpmnElement="Flow_0m7qec6">
+        <di:waypoint x="1375" y="210" />
+        <di:waypoint x="1501" y="210" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1412" y="176" width="52" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_07ey5w9_di" bpmnElement="Flow_07ey5w9">
+        <di:waypoint x="535" y="210" />
+        <di:waypoint x="690" y="210" />
+        <di:waypoint x="690" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="start" bioc:stroke="#43a047" bioc:fill="#c8e6c9" color:background-color="#c8e6c9" color:border-color="#43a047">
+        <dc:Bounds x="242" y="192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="219" y="235" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0yibfwb_di" bpmnElement="get-fortnox-settings">
+        <dc:Bounds x="340" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0ibx6jn_di" bpmnElement="access-token-expired" isMarkerVisible="true">
+        <dc:Bounds x="485" y="185" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="476" y="147.5" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_0gg8t68" bpmnElement="refresh-access-token">
+        <dc:Bounds x="460" y="310" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_0zgho8s" bpmnElement="get-customers">
+        <dc:Bounds x="640" y="520" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0golnnz_di" bpmnElement="get-customer-details">
+        <dc:Bounds x="810" y="520" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0v82xsa_di" bpmnElement="transformCustomers">
+        <dc:Bounds x="1010" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03ti1bi_di" bpmnElement="indexItems">
+        <dc:Bounds x="1169" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_09omjuj_di" bpmnElement="end" bioc:stroke="#e53935" bioc:fill="#ffcdd2" color:background-color="#ffcdd2" color:border-color="#e53935">
+        <dc:Bounds x="1501" y="192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1492" y="236" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_090gkzm" bpmnElement="Event_0ms48ec">
+        <dc:Bounds x="1042" y="652" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1023" y="695" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0b6f9x2_di" bpmnElement="Gateway_0b6f9x2" isMarkerVisible="true">
+        <dc:Bounds x="1325" y="185" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Association_17vfeqf_di" bpmnElement="Association_17vfeqf">
+        <di:waypoint x="1071" y="656" />
+        <di:waypoint x="1109" y="611" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_0cuwppx_di" bpmnElement="Association_0cuwppx">
+        <di:waypoint x="728" y="520" />
+        <di:waypoint x="776" y="470" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
